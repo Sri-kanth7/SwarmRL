@@ -1,0 +1,13 @@
+numpy
+pettingzoo
+gymnasium
+ray[rllib]
+torch
+fastapi
+uvicorn
+websockets
+pydantic
+pyyaml
+pytest
+pytest-cov
+ruff

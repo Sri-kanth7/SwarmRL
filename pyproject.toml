@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swarmrl"
+version = "0.1.0"
+description = "Multi-Agent Deep Reinforcement Learning Simulator"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pettingzoo",
+    "gymnasium",
+    "ray[rllib]",
+    "torch",
+    "fastapi",
+    "uvicorn",
+    "websockets",
+    "pydantic",
+    "pyyaml"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
