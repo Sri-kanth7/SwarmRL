@@ -1,0 +1,45 @@
+# IPPO training configuration (Week 1 foundation).
+#
+# Independent PPO serves as the baseline algorithm next to MAPPO.
+# Configuration only: no training run is executed in Week 1.
+
+algorithm: IPPO
+env: swarm
+framework: torch
+seed: 42
+checkpoint_dir: training/checkpoints
+
+env_config:
+  agent_count: 50
+  world_size: [100.0, 50.0, 100.0]
+  seed: 42
+  dt: 0.1
+  max_steps: 500
+  max_speed: 5.0
+  max_pitch: 0.6
+  collision_radius: 1.5
+  lidar_rays: 8
+  coverage_cell_size: 5.0
+
+model:
+  fcnet_hiddens: [256, 256]
+  activation: relu
+
+multi_agent:
+  # Week 1: independent actors share one policy definition.
+  # Per-agent parameter separation arrives with training runs.
+  policy_id: swarm_policy
+  policy_mapping_fn: all_agents_same_policy
+
+train:
+  num_workers: 0
+  train_batch_size: 1000
+  rollout_fragment_length: 200
+  sgd_minibatch_size: 64
+  num_epochs: 10
+  lr: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_param: 0.2
+  entropy_coeff: 0.01
+  vf_loss_coeff: 0.5

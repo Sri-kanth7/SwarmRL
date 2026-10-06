@@ -1,0 +1,149 @@
+:root {
+  color-scheme: dark;
+  font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+  color: #e2e8f0;
+  background: #0b0f14;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  background: #111823;
+  border-bottom: 1px solid #1f2a3a;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+}
+
+.badge {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  border: 1px solid #2d3748;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+
+.app-main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.scene-panel {
+  background: #000;
+  border: 1px solid #1f2a3a;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.scene-panel canvas {
+  display: block;
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: auto;
+  min-height: 0;
+}
+
+.panel {
+  background: #111823;
+  border: 1px solid #1f2a3a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+.panel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.9rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.panel dt {
+  color: #94a3b8;
+}
+
+.panel dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.panel button {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  background: #1a2332;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  cursor: not-allowed;
+}
+
+.panel button:disabled {
+  opacity: 0.55;
+}
+
+.hint {
+  margin: 0.7rem 0 0;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+@media (max-width: 900px) {
+  .app-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(320px, 1fr) auto;
+  }
+
+  body {
+    overflow: auto;
+  }
+}

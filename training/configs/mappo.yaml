@@ -1,0 +1,47 @@
+# MAPPO training configuration (Week 1 foundation).
+#
+# This file defines configuration only. No training run is executed
+# by the Week 1 entry points; the RLlib Algorithm wiring lands in
+# Week 2 together with the centralized critic.
+
+algorithm: MAPPO
+env: swarm
+framework: torch
+seed: 42
+checkpoint_dir: training/checkpoints
+
+# Must stay consistent with configs/project.yaml and EnvConfig defaults.
+env_config:
+  agent_count: 50
+  world_size: [100.0, 50.0, 100.0]
+  seed: 42
+  dt: 0.1
+  max_steps: 500
+  max_speed: 5.0
+  max_pitch: 0.6
+  collision_radius: 1.5
+  lidar_rays: 8
+  coverage_cell_size: 5.0
+
+model:
+  fcnet_hiddens: [256, 256]
+  activation: relu
+
+multi_agent:
+  # Week 1: one shared policy for all drones.
+  # The centralized critic (MAPPO) is added in Week 2.
+  policy_id: swarm_policy
+  policy_mapping_fn: all_agents_same_policy
+
+train:
+  num_workers: 0
+  train_batch_size: 1000
+  rollout_fragment_length: 200
+  sgd_minibatch_size: 64
+  num_epochs: 10
+  lr: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_param: 0.2
+  entropy_coeff: 0.01
+  vf_loss_coeff: 0.5

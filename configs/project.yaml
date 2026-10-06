@@ -1,20 +1,50 @@
+# Single source of truth for project-wide values.
+# Code defaults (env/config.py, server/config.py) mirror these values;
+# SWARMRL_* environment variables override them for the backend.
+
 project:
   name: SwarmRL
   version: "0.1.0"
+  env: development
 
 environment:
   agent_count: 50
   dimensions: 3
+  # (x, y, z) extents of the y-up world box.
+  world_size: [100.0, 50.0, 100.0]
+  seed: 42
+  dt: 0.1
+  max_steps: 500
+  max_speed: 5.0
+  max_pitch: 0.6
+  collision_radius: 1.5
+  lidar_rays: 8
+  spawn_margin: 5.0
+
+coverage:
+  cell_size: 5.0
+  local_radius: 10.0
+
+reward:
+  exploration: 1.0
+  collision: -10.0
+  boundary: -0.1
+  time: -0.01
 
 training:
   algorithm: MAPPO
   framework: Ray RLlib
   deep_learning_framework: PyTorch
+  seed: 42
+  checkpoint_dir: training/checkpoints
 
 server:
   host: "0.0.0.0"
   port: 8000
   websocket_path: "/ws"
+  mock_tick_interval_ms: 100
+  cors_origins:
+    - "http://localhost:5173"
 
 frontend:
   development_port: 5173

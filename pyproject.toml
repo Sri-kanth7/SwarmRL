@@ -27,6 +27,12 @@ dev = [
     "ruff"
 ]
 
+[tool.setuptools]
+packages = ["env", "server", "training", "training.models"]
+
+[tool.setuptools.package-data]
+training = ["configs/*.yaml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
