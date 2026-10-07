@@ -65,22 +65,24 @@ a react-three-fiber scene.
 Future work: richer rewards and tuning, curriculum, dynamic
 obstacles, wind, performance optimization.
 
-### Training (`training/`) — Week 1 foundation: **configuration only**
+### Training (`training/`) — Weeks 1–2: **IPPO training runs; MAPPO configuration only**
 
 | Module | Responsibility |
 |---|---|
 | `config.py` | YAML loading, seed handling (`TrainingConfig`) |
-| `rl_config.py` | RLlib-style algorithm dictionary builder |
-| `train_mappo.py` / `train_ippo.py` | Entry points (config build, no runs) |
+| `rl_config.py` | RLlib configuration dictionary builder and `PPOConfig` translation |
+| `train_mappo.py` | MAPPO entry point (configuration build, no runs yet) |
+| `train_ippo.py` | IPPO entry point: runs RLlib training, writes checkpoints |
+| `rllib_env.py` | RLlib `MultiAgentEnv` adapter and episode-metric collection |
 | `mappo_model.py` | Actor/critic network specifications |
 | `checkpoint.py` | Checkpoint metadata contract |
 | `evaluate.py` | Policy-agnostic evaluation loop |
 | `metrics.py` | Episode-metric records and aggregation |
 | `configs/*.yaml` | MAPPO/IPPO configuration files |
 
-Future work: actual RLlib training runs, the MAPPO centralized
-critic, decentralized actors at inference, tuned hyperparameters,
-produced checkpoints.
+Future work: MAPPO training runs with the centralized critic,
+decentralized actors at inference, tuned hyperparameters,
+checkpoint-backed backend inference.
 
 ### Backend (`server/`) — Week 1 foundation: **implemented (mock mode)**
 
@@ -149,7 +151,7 @@ duplicate only the environment block and must stay aligned with
 
 | Stage | Content | Status |
 |---|---|---|
-| Week 1 | Environment, physics, coverage, reward interface, RL configuration, backend skeleton, mock stream, frontend/3D skeleton, contracts, docs, tests layout | **Current — foundations** |
-| Week 2 | RL training runs, checkpoint production, real inference, full backend integration, live frontend data flow | Future |
+| Week 1 | Environment, physics, coverage, reward interface, RL configuration, backend skeleton, mock stream, frontend/3D skeleton, contracts, docs, tests layout | Done — foundations |
+| Week 2 | RL training runs, checkpoint production, real inference, full backend integration, live frontend data flow | **In progress — IPPO runs and checkpoints done** |
 | Week 3 | Visualization depth (trails, heatmap), analytics, replay, control surface | Future |
 | Week 4 | Performance optimization, end-to-end hardening, final demo, review | Future |

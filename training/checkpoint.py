@@ -1,10 +1,10 @@
 """Checkpoint handoff foundation.
 
-Week 1 defines the checkpoint directory layout and the metadata
-record that travels with every future policy checkpoint. Writing
-model weights (``torch`` state dicts, Ray RLlib checkpoints) and
-loading them for inference are Week 2 work; the metadata helpers
-below are already usable by tooling and tests.
+The checkpoint directory layout and the metadata record that travels
+with every policy checkpoint are defined here. The IPPO entry point
+``training.train_ippo`` writes the weights (``policy.pt`` and RLlib's
+algorithm checkpoint) next to this metadata; loading them for
+inference is not implemented yet.
 
 See ``docs/contracts/checkpoint_contract.md`` for the full contract.
 """
@@ -35,7 +35,8 @@ class CheckpointMetadata:
         seed: Seed of the training run.
         created_at: UTC ISO-8601 creation timestamp.
         config_path: Training configuration file used, if any.
-        weights_file: Policy-weights file name (None until Week 2).
+        weights_file: Policy-weights file name, or None when no weights
+            were produced.
     """
 
     format_version: int = CHECKPOINT_FORMAT_VERSION

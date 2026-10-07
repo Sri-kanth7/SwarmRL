@@ -32,7 +32,7 @@ class TrainingConfig:
         env_config: Environment constructor keyword arguments.
         model: Network architecture settings.
         multi_agent: Policy layout and mapping function name.
-        train: RLlib trainer hyperparameters (not executed in Week 1).
+        train: RLlib trainer hyperparameters (executed by the IPPO entry point).
         checkpoint_dir: Directory that will receive future checkpoints.
     """
 
@@ -42,7 +42,7 @@ class TrainingConfig:
     seed: int = 42
     env_config: dict[str, Any] = field(default_factory=lambda: dict(DEFAULT_ENV_CONFIG))
     model: dict[str, Any] = field(
-        default_factory=lambda: {"fcnet_hiddens": [256, 256], "activation": "relu"}
+        default_factory=lambda: {"fcnet_hiddens": [256, 256], "fcnet_activation": "relu"}
     )
     multi_agent: dict[str, Any] = field(default_factory=dict)
     train: dict[str, Any] = field(default_factory=dict)

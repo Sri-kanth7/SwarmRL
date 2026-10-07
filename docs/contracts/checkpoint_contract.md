@@ -3,21 +3,27 @@
 Interface between the **training** layer (producer) and the
 **backend** inference layer (consumer).
 
-Implementation: `training/checkpoint.py` (metadata helpers, Week 1).
-Actual weight files are produced in later weeks; this document
-fixes the handoff format so both sides can be built against it.
+Implementation: `training/checkpoint.py` (metadata helpers).
+Weight and checkpoint files are produced by
+`training/train_ippo.py`; this document fixes the handoff format so
+both sides can be built against it.
 
 ## Directory Layout
 
 ```text
 training/checkpoints/           # SWARMRL_CHECKPOINT_DIR / project.yaml
-└── <run_id>/                   # e.g. "mappo_2026w2" or "latest"
+└── <run_id>/                   # e.g. "ippo_20261005-141516" or "latest"
     ├── metadata.json           # required, this contract
-    ├── policy.pt               # policy weights (later week)
-    └── config_snapshot.yaml    # copy of the training config (later week)
+    ├── policy.pt               # policy weights (torch state dict)
+    ├── config_snapshot.yaml    # resolved training configuration
+    ├── metrics.json            # episode metrics + RLlib run metrics
+    └── rllib/                  # RLlib's own algorithm checkpoint
 ```
 
-`training/checkpoints/` is git-ignored (only `.gitkeep` is tracked).
+Only `metadata.json` and the file named by `weights_file` are part
+of the contract; the other entries are producer-side artifacts that
+consumers may ignore. `training/checkpoints/` is git-ignored (only
+`.gitkeep` is tracked).
 
 ## Metadata File (`metadata.json`)
 
@@ -35,7 +41,7 @@ Produced by `training.checkpoint.save_metadata`, read back with
 | `seed` | `integer` | yes | Seed of the training run |
 | `created_at` | `string` (ISO-8601 UTC) | yes | Creation timestamp (written on save) |
 | `config_path` | `string \| null` | no | Training YAML used |
-| `weights_file` | `string \| null` | no | File name of the policy weights; `null` until produced |
+| `weights_file` | `string \| null` | no | File name of the policy weights (`"policy.pt"` for an IPPO run); `null` when no weights were produced yet |
 
 Example:
 
@@ -78,5 +84,6 @@ resolve checkpoint dir (SWARMRL_CHECKPOINT_DIR)
 
 ## Out of Scope (later weeks)
 
-Weight serialization format, checkpoint rotation/cleanup, remote
-artifact storage, resume-from-checkpoint training.
+Checkpoint rotation/cleanup, remote artifact storage,
+resume-from-checkpoint training, and loading weights for backend
+inference.

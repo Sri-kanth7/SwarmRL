@@ -1,15 +1,16 @@
 # Test Strategy
 
-Testing conventions for SwarmRL. Week 1 establishes the layout,
+Testing conventions for SwarmRL. Week 1 established the layout,
 the tooling configuration, and a minimal set of contract tests.
-The full integration suites belong to later weeks.
+Week 2 adds the environment↔training integration suite; the
+remaining integration suites belong to later weeks.
 
 ## Layout
 
 ```text
 tests/
 ├── unit/           # pure logic, no network, no processes
-├── integration/    # cross-layer contract checks (later weeks)
+├── integration/    # cross-layer contract checks
 ├── smoke/          # repository-wide sanity checks
 └── fixtures/       # shared sample data (JSON)
 ```
@@ -29,6 +30,7 @@ python -m pytest
 # by layer
 python -m pytest tests/unit
 python -m pytest tests/smoke
+python -m pytest tests/integration
 
 # with coverage
 python -m pytest --cov=env --cov=server --cov=training
@@ -49,9 +51,19 @@ commands directly (PowerShell-compatible).
 | `tests/smoke/test_project_smoke.py` | Files, configs, and imports of every layer exist and parse |
 | `tests/fixtures/mock_agent_data.json` | Sample `StepMessage` for frontend/tooling use |
 
-`tests/integration/*` files are reserved placeholders: their
-contract-level suites are written in Week 2 (environment↔training,
-training↔backend, backend↔frontend, end-to-end).
+## What Week 2 Covers
+
+| Test file | Scope |
+|---|---|
+| `tests/integration/test_env_training.py` | RLlib environment adapter, YAML→RLlib configuration translation, `--print-config`, short IPPO run writing the checkpoint contract |
+
+The environment↔training suite runs one short IPPO session, so that
+file is the only place a Ray runtime is started. The adapter,
+registry, and configuration checks inside it do not need a running
+Ray runtime; `tests/unit/*` still never touches Ray.
+
+`tests/integration/*` files for training↔backend,
+backend↔frontend, and end-to-end remain reserved placeholders.
 
 ## Conventions
 
@@ -65,8 +77,6 @@ training↔backend, backend↔frontend, end-to-end).
 
 ## Future Extensions (later weeks)
 
-- Environment↔training integration: config round-trips, RLlib env
-  registration.
 - Training↔backend: checkpoint metadata handoff.
 - Backend↔frontend: schema parity between Python models and
   TypeScript types.

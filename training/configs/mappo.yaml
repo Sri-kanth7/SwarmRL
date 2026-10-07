@@ -1,8 +1,8 @@
 # MAPPO training configuration (Week 1 foundation).
 #
 # This file defines configuration only. No training run is executed
-# by the Week 1 entry points; the RLlib Algorithm wiring lands in
-# Week 2 together with the centralized critic.
+# by training/train_mappo.py; MAPPO's RLlib Algorithm wiring lands
+# with the centralized critic.
 
 algorithm: MAPPO
 env: swarm

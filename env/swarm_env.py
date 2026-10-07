@@ -263,6 +263,10 @@ class SwarmEnv(ParallelEnv):
     def _observe(self, agent: str) -> np.ndarray:
         return build_observation(agent, self._states, self._coverage, self.config)
 
+    def observe(self, agent: str) -> np.ndarray:
+        """Current observation of one drone."""
+        return self._observe(agent)
+
     def _info(self, agent: str) -> dict[str, Any]:
         return {
             "step": self._step_count,

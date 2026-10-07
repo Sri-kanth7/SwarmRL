@@ -10,12 +10,14 @@ The objective is to train the drones to search and cover the
 environment cooperatively while minimizing collisions and
 producing an emergent, decentralized search pattern.
 
-> **Current stage: Week 1 foundation.**
+> **Current stage: Week 2 — IPPO training runs.**
 > The repository contains working foundations (environment,
 > configuration, backend skeleton with a mock state stream,
 > frontend/3D skeleton with dummy data, interface contracts, and
-> basic tests). RL training runs, checkpoint-backed inference,
-> and live end-to-end streaming are **not** implemented yet.
+> tests) plus a runnable IPPO entry point that produces an RLlib
+> checkpoint with contract metadata. MAPPO training,
+> checkpoint-backed inference, and live end-to-end streaming are
+> **not** implemented yet.
 
 ---
 
@@ -35,7 +37,7 @@ autonomous agents introduces additional challenges such as:
 SwarmRL addresses these challenges using Multi-Agent
 Proximal Policy Optimization (MAPPO) with a centralized
 critic during training and decentralized actors during
-inference (training runs arrive in Week 2).
+inference (the IPPO baseline runs today; MAPPO arrives later).
 
 ---
 
@@ -123,7 +125,7 @@ training/           RL configuration, entry points, checkpoint
 
 ---
 
-## Current Week 1 Foundation
+## Current Foundation
 
 Implemented:
 
@@ -131,22 +133,23 @@ Implemented:
   bounded 3D kinematics, collision and coverage bookkeeping
 - Action/observation definitions and reward-term interface
 - RL configuration files (MAPPO/IPPO), config loader, environment
-  registration helper, entry points that build (but do not run)
-  RLlib-style configurations
-- Checkpoint metadata contract helpers
+  registration, and a runnable IPPO entry point that trains with
+  RLlib
+- Checkpoint contract helpers plus a checkpoint directory written by
+  every IPPO run (`metadata.json`, `policy.pt`, `metrics.json`,
+  `config_snapshot.yaml`, and the RLlib checkpoint under `rllib/`)
 - FastAPI backend with HTTP endpoints, WebSocket stream, message
   schemas, and a deterministic **mock** drone-state generator
 - React/Vite/TypeScript frontend with a 3D scene, drone
   prototypes, ground/coverage map, and metrics panels driven by
   dummy data
 - Interface contracts and architecture documentation
-- Unit and smoke test foundation
+- Unit, smoke, and environment↔training integration tests
 
 Intentionally deferred (later weeks):
 
-- RL training runs (IPPO/MAPPO), centralized critic, tuned
-  hyperparameters
-- Checkpoint weight production and checkpoint-backed inference
+- MAPPO training and the centralized critic, tuned hyperparameters
+- Checkpoint-backed inference (loading `policy.pt` for the backend)
 - Replay, control endpoints, production streaming
 - Live WebSocket animation, interpolation, trails, coverage
   heatmap, analytics charts, final control panel
@@ -181,8 +184,12 @@ ruff check .
 # backend server (mock state stream on ws://localhost:8000/ws)
 python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
 
-# build training configuration (no training run is started)
+# build a training configuration without training
 python -m training.train_mappo --print-config
+python -m training.train_ippo --print-config
+
+# run a short IPPO training session (writes training/checkpoints/<run_id>/)
+python -m training.train_ippo --config training/configs/ippo.yaml --iterations 2
 
 # frontend dev server (http://localhost:5173)
 npm --prefix frontend run dev

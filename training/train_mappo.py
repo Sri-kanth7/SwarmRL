@@ -4,10 +4,9 @@ Usage::
 
     python -m training.train_mappo [--config PATH] [--seed N] [--print-config]
 
-The entry point loads configuration, registers the environment, and
-builds the RLlib-style algorithm dictionary. It deliberately does
-not start Ray or run training; that lands in Week 2 together with
-the centralized critic.
+The entry point loads configuration and builds the RLlib-style
+algorithm dictionary. It deliberately does not start Ray or run
+training; MAPPO training lands with the centralized critic.
 """
 
 from __future__ import annotations
@@ -68,7 +67,7 @@ def main(argv: Sequence[str] | None = None) -> dict:
             f"[week1] MAPPO config ready: env={algorithm_config['env']} "
             f"seed={algorithm_config['seed']} "
             f"agents={config.env_config.get('agent_count')} "
-            "(training runs start in Week 2)"
+            "(MAPPO training is not implemented yet)"
         )
     return algorithm_config
 
