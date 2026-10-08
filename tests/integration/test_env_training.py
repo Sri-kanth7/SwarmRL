@@ -21,7 +21,7 @@ import torch
 import yaml
 from gymnasium import spaces
 from ray import is_initialized
-from ray.rllib.env.env_checker import check_multiagent_environments
+from ray.rllib.utils.pre_checks.env import check_multiagent_environments
 from ray.tune.registry import ENV_CREATOR, _global_registry
 
 from env import EnvConfig, SwarmEnv
