@@ -13,6 +13,32 @@ from training.metrics import MetricsAggregator
 
 ENV_REGISTRY_NAME = "swarm"
 
+_ACTIVE_COLLECTOR: MetricsAggregator | None = None
+"""Collector bound to the most recent :func:`register_swarm_env` call.
+
+Ray's environment registry pickles every registered creator into Ray's
+internal KV and deserializes a fresh copy on retrieval
+(``ray.tune.registry._Registry``). A creator that captures the collector
+in a closure would therefore hand training environments a deserialized
+*copy* of the collector, leaving the caller's collector empty. Reading
+the collector from this live module state at environment-creation time
+keeps every in-process environment on the caller's own collector
+instance.
+"""
+
+
+def _swarm_env_creator(env_config: dict | None) -> "SwarmMultiAgentEnv":
+    """Build the adapter with the active registration's collector.
+
+    Registered with RLlib by :func:`register_swarm_env`. The collector is
+    resolved from :data:`_ACTIVE_COLLECTOR` at call time, so the
+    environments still share the caller's collector even though the
+    registry returns a deserialized copy of this function.
+    """
+    from training.rllib_env import SwarmMultiAgentEnv
+
+    return SwarmMultiAgentEnv(env_config, collector=_ACTIVE_COLLECTOR)
+
 
 def register_swarm_env(
     env_name: str = ENV_REGISTRY_NAME,
@@ -36,14 +62,12 @@ def register_swarm_env(
     Returns:
         The registered name.
     """
+    global _ACTIVE_COLLECTOR
+
     from ray.tune.registry import register_env
 
-    from training.rllib_env import SwarmMultiAgentEnv
-
-    def _creator(env_config: dict | None) -> SwarmMultiAgentEnv:
-        return SwarmMultiAgentEnv(env_config, collector=collector)
-
-    register_env(env_name, _creator)
+    _ACTIVE_COLLECTOR = collector
+    register_env(env_name, _swarm_env_creator)
     return env_name
 
 
