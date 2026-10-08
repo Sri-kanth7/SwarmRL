@@ -226,6 +226,7 @@ def run_training(
             action_dim=action_dim,
             agent_count=agent_count,
             seed=int(config.seed),
+            created_at=datetime.now(timezone.utc).isoformat(),
             config_path=str(config_path) if config_path is not None else None,
             weights_file=WEIGHTS_FILE_NAME,
         )
