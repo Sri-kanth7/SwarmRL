@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 import pytest
+import ray
 import torch
 import yaml
 from gymnasium import spaces
@@ -172,7 +173,7 @@ def test_build_ppo_config_translates_training_config():
 
     assert ppo.env == ENV_REGISTRY_NAME
     assert ppo.env_config["agent_count"] == TINY_ENV_CONFIG["agent_count"]
-    assert ppo.framework == "torch"
+    assert ppo.framework_str == "torch"
     assert ppo.seed == 7
     assert ppo.num_env_runners == 0
     assert ppo.rollout_fragment_length == "auto"
@@ -231,7 +232,22 @@ def test_run_training_writes_checkpoint_contract(ippo_run: TrainingRun):
     run_dir = ippo_run.run_dir
     missing = [name for name in CHECKPOINT_FILES if not (run_dir / name).exists()]
     assert missing == []
-    assert (run_dir / "rllib" / "metadata.json").exists()
+
+    # RLlib's own algorithm checkpoint: on the new API stack, `Algorithm.save()`
+    # goes through the Checkpointable API and overrides METADATA_FILE_NAME to
+    # "rllib_checkpoint.json", so the RLlib metadata lives under that name
+    # (the "metadata.json" name belongs to the SwarmRL contract above).
+    rllib_dir = run_dir / "rllib"
+    rllib_metadata_file = rllib_dir / "rllib_checkpoint.json"
+    assert rllib_metadata_file.exists()
+    rllib_metadata = json.loads(rllib_metadata_file.read_text("utf-8"))
+    assert rllib_metadata["ray_version"] == ray.__version__
+    assert (rllib_dir / rllib_metadata["class_and_ctor_args_file"]).exists()
+    rllib_state_file = rllib_dir / rllib_metadata["state_file"]
+    assert (
+        rllib_state_file.with_suffix(".pkl").exists()
+        or rllib_state_file.with_suffix(".msgpack").exists()
+    )
 
     metadata = load_metadata(run_dir)
     observation_dim, action_dim = _env_dims(TINY_ENV_CONFIG)
