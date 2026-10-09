@@ -63,7 +63,7 @@ class CheckpointMetadata:
 
 def checkpoint_dir(base_dir: str | Path, run_id: str = "latest") -> Path:
     """Directory that holds one checkpoint."""
-    return Path(base_dir) / run_id
+    return (Path(base_dir) / run_id).resolve()
 
 
 def metadata_path(directory: str | Path) -> Path:

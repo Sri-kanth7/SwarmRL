@@ -201,9 +201,11 @@ def run_training(
         run_dir = checkpoint_dir(
             config.checkpoint_dir, run_id or _default_run_id(config)
         )
+        run_dir = run_dir.resolve()
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        algorithm.save(str(run_dir / RLLIB_DIR_NAME))
+        rllib_ckpt_dir = (run_dir / RLLIB_DIR_NAME).resolve()
+        algorithm.save(str(rllib_ckpt_dir))
         weights = algorithm.get_weights([POLICY_ID]).get(POLICY_ID)
         torch.save(_policy_state(weights), run_dir / WEIGHTS_FILE_NAME)
 
