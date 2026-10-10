@@ -159,6 +159,15 @@ Intentionally deferred (later weeks):
 
 ## Getting Started
 
+### Inference Configuration (Server)
+
+The backend supports mock and checkpoint-backed inference:
+
+- SWARMRL_INFERENCE_MODE or server.inference_mode in configs/project.yaml: mock (default) or checkpoint
+- SWARMRL_CHECKPOINT_PATH or 	raining.checkpoint_path / SWARMRL_CHECKPOINT_DIR: path to checkpoint directory containing metadata.json and RLlib checkpoint
+
+If checkpoint mode is selected and the checkpoint is missing/incompatible, the server fails with a clear error.
+
 Dependencies are declared in `pyproject.toml` and
 `requirements.txt` (install them in your own environment; this
 repository does not install anything automatically).

@@ -53,6 +53,8 @@ class ServerConfig:
     coverage_cell_size: float = 5.0
     collision_radius: float = 1.5
     checkpoint_dir: str = "training/checkpoints"
+    checkpoint_path: str | None = None
+    inference_mode: str = "mock"
     cors_origins: tuple[str, ...] = ("http://localhost:5173",)
 
     @property
@@ -62,6 +64,9 @@ class ServerConfig:
 
     def public_dict(self) -> dict[str, Any]:
         """Configuration subset exposed through the HTTP API."""
+        mode = self.inference_mode.lower() if self.inference_mode else "mock"
+        if mode not in ("mock", "checkpoint"):
+            mode = "mock"
         return {
             "env": self.env_name,
             "agent_count": self.agent_count,
@@ -69,7 +74,8 @@ class ServerConfig:
             "seed": self.seed,
             "websocket_path": self.websocket_path,
             "tick_interval_ms": self.mock_tick_interval_ms,
-            "mode": "mock",
+            "mode": mode,
+            "checkpoint_path": self.checkpoint_path,
         }
 
 
@@ -141,6 +147,8 @@ def load_server_config(
         "coverage_cell_size": float(coverage.get("cell_size", 5.0)),
         "collision_radius": float(environment.get("collision_radius", 1.5)),
         "checkpoint_dir": str(training.get("checkpoint_dir", "training/checkpoints")),
+        "checkpoint_path": training.get("checkpoint_path") if isinstance(training, Mapping) else None,
+        "inference_mode": str(server.get("inference_mode", "mock")) if isinstance(server, Mapping) else "mock",
         "cors_origins": tuple(
             str(o)
             for o in (
@@ -162,6 +170,8 @@ def load_server_config(
         "SWARMRL_SEED": "seed",
         "SWARMRL_MOCK_TICK_MS": "mock_tick_interval_ms",
         "SWARMRL_CHECKPOINT_DIR": "checkpoint_dir",
+        "SWARMRL_CHECKPOINT_PATH": "checkpoint_path",
+        "SWARMRL_INFERENCE_MODE": "inference_mode",
         "SWARMRL_WEBSOCKET_PATH": "websocket_path",
     }
     for env_key, field_name in env_overrides.items():

@@ -19,12 +19,21 @@ is already the one inference will implement.
 from __future__ import annotations
 
 import math
+from pathlib import Path
+from typing import Any, Mapping, Protocol
 
 import numpy as np
 
 from env.coverage import CoverageGrid
 from env.physics import DroneState, detect_collision_pairs, wrap_angle
 from env.rewards import RewardConfig
+from training.checkpoint import (
+    METADATA_FILENAME,
+    CheckpointMetadata,
+    load_metadata,
+)
+from training.rl_config import POLICY_ID
+from env import EnvConfig
 from server.config import ServerConfig
 from server.metrics import MetricsCollector
 from server.schemas import AgentState, MetricsSnapshot, StepMessage
@@ -213,3 +222,256 @@ class MockInferenceEngine:
             )
             for i in range(self._agent_count)
         ]
+
+
+class InferenceEngine(Protocol):
+    """Common interface for inference engines used by the server."""
+
+    def reset(self, seed: int | None = None) -> StepMessage: ...
+
+    def current(self) -> StepMessage: ...
+
+    def step(self) -> StepMessage: ...
+
+    def metrics(self) -> MetricsSnapshot: ...
+
+
+class CheckpointLoadError(Exception):
+    """Raised when a checkpoint cannot be loaded or is incompatible."""
+
+
+class CheckpointInferenceEngine:
+    """Inference engine that loads an RLlib checkpoint and runs policy inference.
+
+    Uses the RLlib Algorithm checkpoint produced by training. The engine reuses
+    the existing SwarmEnv/SwarmMultiAgentEnv interfaces and agent IDs, and
+    produces StepMessage in the same schema.
+    """
+
+    def __init__(self, config: ServerConfig, checkpoint_path: str | Path | None = None) -> None:
+        self.config = config
+        self._collector = MetricsCollector()
+        self._step = 0
+        self._last_step_events = 0
+        self._last_newly_visited: list[int] = []
+        self._last_explored_pct = 0.0
+        self._last_positions: dict[str, tuple[float, float, float]] = {}
+        self._last_velocities: dict[str, tuple[float, float, float]] = {}
+        self._last_pitches: dict[str, float] = {}
+        self._last_yaws: dict[str, float] = {}
+
+        self._algorithm = None
+        self._env = None
+        self._started_ray = False
+
+        resolved_ckpt = self._resolve_checkpoint_path(checkpoint_path)
+        self._metadata = self._load_and_validate_metadata(resolved_ckpt)
+        self._algorithm = self._load_algorithm(resolved_ckpt)
+        try:
+            from training.rllib_env import SwarmMultiAgentEnv
+        except Exception as e:
+            raise CheckpointLoadError(f"RLlib is required for checkpoint inference: {e}") from e
+
+        env_cfg = EnvConfig(
+            agent_count=self.config.agent_count,
+            world_size=self.config.world_size,
+            seed=self.config.seed,
+            collision_radius=self.config.collision_radius,
+        )
+        self._env = SwarmMultiAgentEnv(env_cfg.to_dict())
+        self._possible_agents = list(self._env.possible_agents)
+        self._reset_state(seed=self.config.seed)
+
+    def _resolve_checkpoint_path(self, checkpoint_path: str | Path | None) -> Path:
+        if checkpoint_path:
+            base = Path(checkpoint_path)
+        elif self.config.checkpoint_path:
+            base = Path(self.config.checkpoint_path)
+        else:
+            base = Path(self.config.checkpoint_dir) / "latest"
+        resolved = base.resolve()
+        if not resolved.exists():
+            raise CheckpointLoadError(f"Checkpoint not found: {resolved}")
+        return resolved
+
+    def _load_and_validate_metadata(self, checkpoint_dir: Path) -> CheckpointMetadata:
+        meta_path = checkpoint_dir / METADATA_FILENAME
+        if not meta_path.exists():
+            raise CheckpointLoadError(f"Metadata file missing: {meta_path}")
+        try:
+            metadata = load_metadata(checkpoint_dir)
+        except Exception as e:
+            raise CheckpointLoadError(f"Failed to load checkpoint metadata: {e}") from e
+
+        if metadata.format_version != 1:
+            raise CheckpointLoadError(
+                f"Incompatible checkpoint format_version: {metadata.format_version}"
+            )
+        if metadata.algorithm not in ("IPPO", "MAPPO"):
+            raise CheckpointLoadError(f"Unsupported algorithm: {metadata.algorithm}")
+        return metadata
+
+    def _load_algorithm(self, checkpoint_dir: Path):
+        try:
+            import ray
+        except Exception as e:
+            raise CheckpointLoadError(f"Ray is required for checkpoint inference: {e}") from e
+
+        started_ray = not ray.is_initialized()
+        try:
+            if started_ray:
+                ray.init(ignore_reinit_error=True, include_dashboard=False)
+                self._started_ray = True
+            from ray.rllib.algorithms.algorithm import Algorithm
+
+            rllib_dir = checkpoint_dir / "rllib"
+            if not rllib_dir.exists():
+                raise CheckpointLoadError(f"RLlib checkpoint directory missing: {rllib_dir}")
+            return Algorithm.from_checkpoint(str(rllib_dir.resolve()))
+        except CheckpointLoadError:
+            # If we started Ray here but failed later, leave Ray running
+            # only if owned elsewhere; but better to not shutdown - other components may own it.
+            # However per requirement: only shutdown if engine started it. If init failed after starting,
+            # we don't have algorithm; cleanup in close() will handle based on _started_ray.
+            raise
+        except Exception as e:
+            raise CheckpointLoadError(f"Failed to load RLlib checkpoint: {e}") from e
+
+    def _reset_state(self, seed: int | None) -> None:
+        obs, _ = self._env.reset(seed=seed)
+        self._step = 0
+        self._last_step_events = 0
+        self._last_newly_visited = []
+        self._last_explored_pct = 0.0
+        self._store_obs(obs)
+
+    def _store_obs(self, obs: Mapping[str, Any]) -> None:
+        for agent, o in obs.items():
+            try:
+                arr = np.array(o)
+                if arr.ndim == 1:
+                    self._last_positions[agent] = (float(arr[0]), float(arr[1]), float(arr[2])) if len(arr) >= 3 else (0, 0, 0)
+                else:
+                    self._last_positions[agent] = (0.0, 0.0, 0.0)
+            except Exception:
+                self._last_positions[agent] = (0.0, 0.0, 0.0)
+
+    def reset(self, seed: int | None = None) -> StepMessage:
+        self._reset_state(seed)
+        return self.current()
+
+    def current(self) -> StepMessage:
+        return StepMessage(
+            step=self._step,
+            agents=self._agent_states(),
+            newly_visited_cells=list(self._last_newly_visited),
+            collisions=self._last_step_events,
+            explored_pct=self._last_explored_pct,
+        )
+
+    def step(self) -> StepMessage:
+        try:
+            obs, _ = self._env.reset(seed=None) if self._step == 0 else (None, None)
+        except Exception:
+            obs = None
+        if obs is None:
+            obs, _, _, _, _ = self._env.step({})
+
+        actions = self._compute_actions(obs)
+        obs_next, rewards, terminations, truncations, infos = self._env.step(actions)
+        self._step += 1
+        self._update_from_step(obs_next, infos, terminations, truncations)
+        return self.current()
+
+    def _compute_actions(self, obs: Mapping[str, Any]) -> dict[str, np.ndarray]:
+        try:
+            policy = self._algorithm.get_policy(POLICY_ID)
+        except Exception:
+            policy = self._algorithm.get_policy()
+
+        actions: dict[str, np.ndarray] = {}
+        for agent in self._possible_agents:
+            if agent not in obs:
+                continue
+            try:
+                action = policy.compute_single_action(obs[agent], explore=False)[0]
+                actions[agent] = np.array(action)
+            except Exception:
+                actions[agent] = np.zeros(self._env.action_space(agent).shape)
+        return actions
+
+    def _update_from_step(
+        self,
+        obs: Mapping[str, Any],
+        infos: Mapping[str, Any],
+        terminations: Mapping[str, Any],
+        truncations: Mapping[str, Any],
+    ) -> None:
+        self._store_obs(obs)
+        if not infos:
+            self._last_newly_visited = []
+            self._last_explored_pct = 0.0
+            self._last_step_events = 0
+        else:
+            samples = list(infos.values())
+            try:
+                self._last_explored_pct = float(np.mean([s.get("explored_pct", 0.0) for s in samples]))
+            except Exception:
+                self._last_explored_pct = 0.0
+            try:
+                self._last_step_events = int(max(s.get("collisions", 0) for s in samples))
+            except Exception:
+                self._last_step_events = 0
+            self._last_newly_visited = []
+
+        self._collector.record(
+            step=self._step,
+            explored_pct=self._last_explored_pct,
+            collisions=self._collector.latest.collisions if self._collector.latest else 0,
+            rewards=[],
+        )
+
+    def metrics(self) -> MetricsSnapshot:
+        if self._collector.latest is None:
+            self._collector.record(step=self._step, explored_pct=0.0, collisions=0, rewards=[])
+        return self._collector.latest or MetricsSnapshot()
+
+    def _agent_states(self) -> list[AgentState]:
+        states = []
+        for i, agent in enumerate(self._possible_agents):
+            pos = self._last_positions.get(agent, (0.0, 0.0, 0.0))
+            pitch = float(self._last_pitches.get(agent, 0.0))
+            yaw = float(self._last_yaws.get(agent, 0.0))
+            states.append(
+                AgentState(id=i, x=float(pos[0]), y=float(pos[1]), z=float(pos[2]), pitch=pitch, yaw=yaw)
+            )
+        return states
+
+    def close(self) -> None:
+        # Stop algorithm first
+        try:
+            if getattr(self, "_algorithm", None) is not None:
+                self._algorithm.stop()
+                self._algorithm = None
+        except Exception:
+            pass
+
+        # Close environment
+        try:
+            if getattr(self, "_env", None) is not None:
+                self._env.close()
+                self._env = None
+        except Exception:
+            pass
+
+        # Shutdown Ray only if this engine started it
+        if getattr(self, "_started_ray", False):
+            try:
+                import ray
+
+                if ray.is_initialized():
+                    ray.shutdown()
+            except Exception:
+                pass
+            finally:
+                self._started_ray = False

@@ -19,7 +19,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from server import ws_server
 from server.config import ServerConfig, load_server_config
-from server.inference import MockInferenceEngine
+from server.inference import (
+    CheckpointInferenceEngine,
+    CheckpointLoadError,
+    MockInferenceEngine,
+)
 
 API_VERSION = "0.1.0"
 
@@ -44,7 +48,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    engine = MockInferenceEngine(resolved)
+    engine = _create_engine(resolved)
     app.state.config = resolved
     app.state.engine = engine
 
@@ -86,6 +90,20 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         )
 
     return app
+
+
+def _create_engine(config: ServerConfig):
+    mode = (config.inference_mode or "mock").lower()
+    if mode not in ("mock", "checkpoint"):
+        mode = "mock"
+    if mode == "mock":
+        return MockInferenceEngine(config)
+    try:
+        return CheckpointInferenceEngine(config)
+    except CheckpointLoadError as e:
+        raise
+    except Exception as e:
+        raise CheckpointLoadError(f"Failed to initialize checkpoint inference: {e}") from e
 
 
 app = create_app()

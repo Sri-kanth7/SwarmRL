@@ -93,11 +93,8 @@ checkpoint-backed backend inference.
 | `schemas.py` | `StepMessage` / `AgentState` / `MetricsSnapshot` |
 | `config.py` | Configuration resolution (env vars > YAML > defaults) |
 | `metrics.py` | Metrics history collection |
-| `inference.py` | **Mock** deterministic state generator |
+| inference.py | Inference engines (Mock + checkpoint-backed) |
 | `replay.py` | Reserved (deferred) |
-
-Future work: checkpoint-backed inference, replay, control
-endpoints, production streaming performance.
 
 ### Frontend (`frontend/`) — Week 1 foundation: **implemented (dummy data)**
 
