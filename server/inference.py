@@ -19,24 +19,25 @@ is already the one inference will implement.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 
 import numpy as np
 
+from env import EnvConfig
 from env.coverage import CoverageGrid
 from env.physics import DroneState, detect_collision_pairs, wrap_angle
 from env.rewards import RewardConfig
+from server.config import ServerConfig
+from server.metrics import MetricsCollector
+from server.schemas import AgentState, MetricsSnapshot, StepMessage
 from training.checkpoint import (
     METADATA_FILENAME,
     CheckpointMetadata,
     load_metadata,
 )
 from training.rl_config import POLICY_ID
-from env import EnvConfig
-from server.config import ServerConfig
-from server.metrics import MetricsCollector
-from server.schemas import AgentState, MetricsSnapshot, StepMessage
 
 
 class MockInferenceEngine:
@@ -129,7 +130,6 @@ class MockInferenceEngine:
 
     def close(self) -> None:
         """No-op: the mock engine owns no external resources to release."""
-        return None
 
     # ------------------------------------------------------------------
     # Internals
@@ -368,7 +368,8 @@ class CheckpointInferenceEngine:
                     self._last_positions[agent] = (float(arr[0]), float(arr[1]), float(arr[2])) if len(arr) >= 3 else (0, 0, 0)
                 else:
                     self._last_positions[agent] = (0.0, 0.0, 0.0)
-            except Exception:
+            # Best-effort fallback: any malformed observation maps to a zero position.
+            except Exception:  # noqa: BLE001
                 self._last_positions[agent] = (0.0, 0.0, 0.0)
 
     def reset(self, seed: int | None = None) -> StepMessage:
@@ -387,13 +388,14 @@ class CheckpointInferenceEngine:
     def step(self) -> StepMessage:
         try:
             obs, _ = self._env.reset(seed=None) if self._step == 0 else (None, None)
-        except Exception:
+        # Best-effort fallback: fall through to a stepless observation on reset failure.
+        except Exception:  # noqa: BLE001
             obs = None
         if obs is None:
             obs, _, _, _, _ = self._env.step({})
 
         actions = self._compute_actions(obs)
-        obs_next, rewards, terminations, truncations, infos = self._env.step(actions)
+        obs_next, _rewards, terminations, truncations, infos = self._env.step(actions)
         self._step += 1
         self._update_from_step(obs_next, infos, terminations, truncations)
         return self.current()
@@ -401,7 +403,8 @@ class CheckpointInferenceEngine:
     def _compute_actions(self, obs: Mapping[str, Any]) -> dict[str, np.ndarray]:
         try:
             policy = self._algorithm.get_policy(POLICY_ID)
-        except Exception:
+        # Best-effort fallback: unknown policy id falls back to the default policy.
+        except Exception:  # noqa: BLE001
             policy = self._algorithm.get_policy()
 
         actions: dict[str, np.ndarray] = {}
@@ -411,7 +414,8 @@ class CheckpointInferenceEngine:
             try:
                 action = policy.compute_single_action(obs[agent], explore=False)[0]
                 actions[agent] = np.array(action)
-            except Exception:
+            # Best-effort fallback: inference failure yields a zero action for the agent.
+            except Exception:  # noqa: BLE001
                 actions[agent] = np.zeros(self._env.action_space(agent).shape)
         return actions
 
@@ -431,11 +435,13 @@ class CheckpointInferenceEngine:
             samples = list(infos.values())
             try:
                 self._last_explored_pct = float(np.mean([s.get("explored_pct", 0.0) for s in samples]))
-            except Exception:
+            # Best-effort fallback: malformed info values default to zero coverage.
+            except Exception:  # noqa: BLE001
                 self._last_explored_pct = 0.0
             try:
                 self._last_step_events = int(max(s.get("collisions", 0) for s in samples))
-            except Exception:
+            # Best-effort fallback: malformed info values default to zero collisions.
+            except Exception:  # noqa: BLE001
                 self._last_step_events = 0
             self._last_newly_visited = []
 
@@ -469,20 +475,21 @@ class CheckpointInferenceEngine:
         initialization, or when no resources were created. Cleanup failures
         are swallowed so they never mask an in-flight initialization error.
         """
-        # Stop algorithm first
+        # Stop algorithm first. Cleanup is best-effort: a stop() failure must
+        # never mask the original checkpoint/initialization error.
         try:
             if getattr(self, "_algorithm", None) is not None:
                 self._algorithm.stop()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         finally:
             self._algorithm = None
 
-        # Close environment
+        # Close environment. Cleanup is best-effort for the same reason.
         try:
             if getattr(self, "_env", None) is not None:
                 self._env.close()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         finally:
             self._env = None
@@ -494,12 +501,14 @@ class CheckpointInferenceEngine:
         """Best-effort shutdown of Ray, but only when this engine started it."""
         if not getattr(self, "_started_ray", False):
             return
+        # Best-effort shutdown: failures are swallowed so they never replace an
+        # in-flight initialization/checkpoint error.
         try:
             import ray
 
             if ray.is_initialized():
                 ray.shutdown()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         finally:
             self._started_ray = False

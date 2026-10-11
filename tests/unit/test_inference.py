@@ -260,7 +260,7 @@ def test_init_env_import_failure_cleans_up(monkeypatch, tmp_path):
 
 def test_load_failure_not_masked_by_shutdown_error(monkeypatch, tmp_path):
     (tmp_path / "rllib").mkdir()
-    state = _install_fake_ray(
+    _install_fake_ray(
         monkeypatch,
         initialized=False,
         load_error=RuntimeError("checkpoint boom"),
