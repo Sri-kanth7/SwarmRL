@@ -124,7 +124,7 @@ def _create_engine(config: ServerConfig):
         return MockInferenceEngine(config)
     try:
         return CheckpointInferenceEngine(config)
-    except CheckpointLoadError as e:
+    except CheckpointLoadError:
         raise
     except Exception as e:
         raise CheckpointLoadError(f"Failed to initialize checkpoint inference: {e}") from e

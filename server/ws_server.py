@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 async def handle_connection(
     websocket: WebSocket,
-    engine: "InferenceEngine",
+    engine: InferenceEngine,
     *,
     tick_seconds: float,
     max_messages: int | None = None,
