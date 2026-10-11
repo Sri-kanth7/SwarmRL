@@ -127,6 +127,10 @@ class MockInferenceEngine:
             )
         return self._collector.latest or MetricsSnapshot()
 
+    def close(self) -> None:
+        """No-op: the mock engine owns no external resources to release."""
+        return None
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
@@ -270,17 +274,27 @@ class CheckpointInferenceEngine:
         try:
             from training.rllib_env import SwarmMultiAgentEnv
         except Exception as e:
+            # The algorithm (and possibly an engine-owned Ray runtime) is
+            # already live; release it before reporting the import failure.
+            self.close()
             raise CheckpointLoadError(f"RLlib is required for checkpoint inference: {e}") from e
 
-        env_cfg = EnvConfig(
-            agent_count=self.config.agent_count,
-            world_size=self.config.world_size,
-            seed=self.config.seed,
-            collision_radius=self.config.collision_radius,
-        )
-        self._env = SwarmMultiAgentEnv(env_cfg.to_dict())
-        self._possible_agents = list(self._env.possible_agents)
-        self._reset_state(seed=self.config.seed)
+        try:
+            env_cfg = EnvConfig(
+                agent_count=self.config.agent_count,
+                world_size=self.config.world_size,
+                seed=self.config.seed,
+                collision_radius=self.config.collision_radius,
+            )
+            self._env = SwarmMultiAgentEnv(env_cfg.to_dict())
+            self._possible_agents = list(self._env.possible_agents)
+            self._reset_state(seed=self.config.seed)
+        except Exception:
+            # Any failure after the algorithm loads must release the
+            # algorithm, the environment (if created), and engine-owned Ray.
+            # Cleanup is best-effort so the original error is re-raised.
+            self.close()
+            raise
 
     def _resolve_checkpoint_path(self, checkpoint_path: str | Path | None) -> Path:
         if checkpoint_path:
@@ -329,12 +343,13 @@ class CheckpointInferenceEngine:
                 raise CheckpointLoadError(f"RLlib checkpoint directory missing: {rllib_dir}")
             return Algorithm.from_checkpoint(str(rllib_dir.resolve()))
         except CheckpointLoadError:
-            # If we started Ray here but failed later, leave Ray running
-            # only if owned elsewhere; but better to not shutdown - other components may own it.
-            # However per requirement: only shutdown if engine started it. If init failed after starting,
-            # we don't have algorithm; cleanup in close() will handle based on _started_ray.
+            # Release a Ray runtime this engine started before re-raising.
+            # Externally initialized Ray is left untouched because the
+            # ownership flag is only set after a successful ray.init().
+            self._shutdown_ray_if_owned()
             raise
         except Exception as e:
+            self._shutdown_ray_if_owned()
             raise CheckpointLoadError(f"Failed to load RLlib checkpoint: {e}") from e
 
     def _reset_state(self, seed: int | None) -> None:
@@ -448,30 +463,43 @@ class CheckpointInferenceEngine:
         return states
 
     def close(self) -> None:
+        """Release the algorithm, environment, and engine-owned Ray runtime.
+
+        Best-effort and idempotent: safe to call repeatedly, after a partial
+        initialization, or when no resources were created. Cleanup failures
+        are swallowed so they never mask an in-flight initialization error.
+        """
         # Stop algorithm first
         try:
             if getattr(self, "_algorithm", None) is not None:
                 self._algorithm.stop()
-                self._algorithm = None
         except Exception:
             pass
+        finally:
+            self._algorithm = None
 
         # Close environment
         try:
             if getattr(self, "_env", None) is not None:
                 self._env.close()
-                self._env = None
         except Exception:
             pass
+        finally:
+            self._env = None
 
         # Shutdown Ray only if this engine started it
-        if getattr(self, "_started_ray", False):
-            try:
-                import ray
+        self._shutdown_ray_if_owned()
 
-                if ray.is_initialized():
-                    ray.shutdown()
-            except Exception:
-                pass
-            finally:
-                self._started_ray = False
+    def _shutdown_ray_if_owned(self) -> None:
+        """Best-effort shutdown of Ray, but only when this engine started it."""
+        if not getattr(self, "_started_ray", False):
+            return
+        try:
+            import ray
+
+            if ray.is_initialized():
+                ray.shutdown()
+        except Exception:
+            pass
+        finally:
+            self._started_ray = False
