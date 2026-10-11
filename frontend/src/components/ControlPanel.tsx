@@ -11,12 +11,16 @@ export interface ControlPanelProps {
   agentCount: number
   metrics: MetricsSnapshot
   mode?: string
+  connected?: boolean
+  statusLabel?: string
 }
 
 export default function ControlPanel({
   agentCount,
   metrics,
   mode = 'mock',
+  connected = false,
+  statusLabel = 'disconnected',
 }: ControlPanelProps) {
   return (
     <section className="panel" aria-label="control panel">
@@ -27,9 +31,9 @@ export default function ControlPanel({
         <dt>Agents</dt>
         <dd>{agentCount}</dd>
         <dt>Step</dt>
-        <dd>{metrics.step}</dd>
+        <dd>{Number.isFinite(metrics.step) ? metrics.step : '—'}</dd>
         <dt>Stream</dt>
-        <dd>not connected</dd>
+        <dd>{connected ? 'connected' : statusLabel}</dd>
       </dl>
       <div className="panel-actions">
         <button type="button" disabled>
@@ -42,7 +46,7 @@ export default function ControlPanel({
           Connect
         </button>
       </div>
-      <p className="hint">Live controls arrive with backend integration.</p>
+      <p className="hint">Live streaming is read-only; controls arrive in a later week.</p>
     </section>
   )
 }

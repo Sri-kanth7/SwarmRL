@@ -84,35 +84,36 @@ Future work: MAPPO training runs with the centralized critic,
 decentralized actors at inference, tuned hyperparameters,
 checkpoint-backed backend inference.
 
-### Backend (`server/`) — Week 1 foundation: **implemented (mock mode)**
+### Backend (`server/`) — Week 1 foundation + Week 2 streaming: **implemented (mock mode)**
 
 | Module | Responsibility |
 |---|---|
-| `app.py` | FastAPI application and routes |
-| `ws_server.py` | WebSocket streaming handler |
+| `app.py` | FastAPI application and routes; lifespan closes the engine on shutdown |
+| `ws_server.py` | WebSocket streaming handler (engine-agnostic) |
 | `schemas.py` | `StepMessage` / `AgentState` / `MetricsSnapshot` |
 | `config.py` | Configuration resolution (env vars > YAML > defaults) |
 | `metrics.py` | Metrics history collection |
 | inference.py | Inference engines (Mock + checkpoint-backed) |
 | `replay.py` | Reserved (deferred) |
 
-### Frontend (`frontend/`) — Week 1 foundation: **implemented (dummy data)**
+### Frontend (`frontend/`) — Week 1 foundation + Week 2 streaming: **implemented (live mock stream)**
 
 | Area | Responsibility |
 |---|---|
 | `scenes/SwarmScene.tsx` | react-three-fiber canvas and camera |
-| `components/Drone`, `DroneSwarm` | Drone mesh prototypes |
+| `components/Drone`, `DroneSwarm` | Drone mesh prototypes (position from streamed XYZ) |
 | `components/VisionCone` | Vision-cone prototype (optional) |
 | `components/CoverageMap` | Ground, grid, debris blocks |
 | `components/ControlPanel`, `AnalyticsPanel` | Status/metrics panels |
-| `hooks/useSwarmState` | Deterministic dummy swarm snapshot |
-| `hooks/useWebSocket` | Reserved (no connection yet) |
+| `hooks/useWebSocket` | Opens one socket, validates frames, bounded reconnect, cleans up |
+| `hooks/useSwarmState` | Live stream snapshot with a pre-connection placeholder |
 | `services/websocket.ts` | Endpoint URL resolution |
+| `services/messages.ts` | Pure frame decode/validation + metrics projection |
 | `types/*` | Wire-contract TypeScript types |
 
-Future work: live WebSocket animation, interpolation, flight
-trails, coverage heatmap, analytics charts, final control panel,
-performance tuning.
+Future work: interpolation, flight trails, coverage heatmap,
+analytics charts, final control panel, performance tuning, and a
+JavaScript test runner.
 
 ## Data Contracts
 

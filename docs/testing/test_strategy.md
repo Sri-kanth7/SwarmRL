@@ -56,14 +56,45 @@ commands directly (PowerShell-compatible).
 | Test file | Scope |
 |---|---|
 | `tests/integration/test_env_training.py` | RLlib environment adapter, YAML→RLlib configuration translation, `--print-config`, short IPPO run writing the checkpoint contract |
+| `tests/integration/test_server_frontend.py` | WebSocket handler streaming the selected engine's messages, stable ids / finite world coordinates / changing positions, disconnect and error cleanup, engine close on application shutdown, checkpoint-failure-is-not-mocked, HTTP endpoint compatibility, and Python↔TypeScript field parity |
 
 The environment↔training suite runs one short IPPO session, so that
 file is the only place a Ray runtime is started. The adapter,
 registry, and configuration checks inside it do not need a running
 Ray runtime; `tests/unit/*` still never touches Ray.
 
-`tests/integration/*` files for training↔backend,
-backend↔frontend, and end-to-end remain reserved placeholders.
+The backend↔frontend suite drives `server.ws_server.handle_connection`
+with in-process fake sockets (no network, no Ray, no checkpoint) and
+compares `frontend/src/types/*.ts` against the Pydantic schemas. It
+deliberately avoids `fastapi.testclient`, which would require `httpx`
+(a package the project does not declare).
+
+`tests/integration/test_end_to_end.py` remains a reserved placeholder.
+
+## Frontend Tests
+
+There is no JavaScript/TypeScript test runner in the repository
+(`frontend/package.json` has no `test` script and no vitest/jest
+dependency). Adding one would change dependencies, which this change
+set is not allowed to do, so frontend behavior is covered indirectly:
+
+- the pure decoder/validator (`frontend/src/services/messages.ts`) is
+  written dependency-free so it can be unit tested once a runner is
+  added,
+- the wire contract is enforced field-for-field from pytest by
+  `tests/integration/test_server_frontend.py`, and
+- the manual smoke test below exercises the browser path.
+
+Adding a frontend runner (for example vitest) is a recommended
+follow-up that requires an explicit dependency decision.
+
+## Manual Streaming Verification
+
+See the "End-To-End Smoke Test" section of
+`docs/contracts/websocket_schema.md`. In short: start the backend and
+frontend, confirm the header badge reads `live stream (streaming)`
+with moving drones and a rising step, then stop the backend and
+confirm the badge switches to a disconnected state.
 
 ## Conventions
 

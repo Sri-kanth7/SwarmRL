@@ -12,6 +12,8 @@ checkpoints, replay, and control endpoints are later work.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, WebSocket
@@ -28,6 +30,24 @@ from server.inference import (
 API_VERSION = "0.1.0"
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Release the inference engine when the application shuts down.
+
+    Checkpoint-backed engines own an RLlib algorithm, an environment,
+    and possibly an engine-started Ray runtime, so closing on shutdown
+    keeps process teardown clean. Closing is idempotent, and the mock
+    engine's ``close`` is a no-op.
+    """
+    try:
+        yield
+    finally:
+        engine = getattr(app.state, "engine", None)
+        close = getattr(engine, "close", None)
+        if callable(close):
+            close()
+
+
 def create_app(config: ServerConfig | None = None) -> FastAPI:
     """Build the backend application.
 
@@ -37,9 +57,15 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
 
     Returns:
         A configured FastAPI instance.
+
+    Raises:
+        CheckpointLoadError: If checkpoint mode is selected but the
+            checkpoint cannot be loaded. The error is never silently
+            downgraded to the mock engine.
     """
     resolved = config or load_server_config()
-    app = FastAPI(title="SwarmRL Backend", version=API_VERSION)
+    engine = _create_engine(resolved)
+    app = FastAPI(title="SwarmRL Backend", version=API_VERSION, lifespan=_lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(resolved.cors_origins),
@@ -47,8 +73,6 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    engine = _create_engine(resolved)
     app.state.config = resolved
     app.state.engine = engine
 
@@ -58,7 +82,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
             "service": "swarmrl-backend",
             "status": "ok",
             "version": API_VERSION,
-            "mode": "mock",
+            "mode": resolved.public_dict()["mode"],
         }
 
     @app.get("/api/health")

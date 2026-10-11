@@ -1,19 +1,30 @@
 /**
- * Dummy swarm state for the Week 1 foundation.
+ * Swarm state for the visualization.
  *
- * Produces a deterministic set of drones so the 3D scene and panels
- * can be developed without a backend connection. Live WebSocket
- * state replaces this hook once integration lands.
+ * Composes the WebSocket hook with a deterministic placeholder swarm:
+ * live drone positions from the backend stream are used as soon as the
+ * first valid `StepMessage` arrives, and the placeholder set only fills
+ * the scene before the first frame (it never animates or masks a
+ * disconnect). Metrics come straight from the stream; values the
+ * stream does not carry are reported as unavailable.
  */
 import { useMemo } from 'react'
 import { DEFAULT_AGENT_COUNT, WORLD_SIZE } from '../config'
+import { messageToMetrics } from '../services/messages'
 import type { AgentState } from '../types/agent'
 import type { MetricsSnapshot } from '../types/metrics'
+import { describeWebSocketStatus, useWebSocket, type WebSocketStatusKind } from './useWebSocket'
 
 export interface SwarmSnapshot {
   step: number
   agents: AgentState[]
   metrics: MetricsSnapshot
+  connected: boolean
+  status: WebSocketStatusKind
+  statusLabel: string
+  /** True once at least one valid streamed snapshot has been received. */
+  hasLiveData: boolean
+  agentCount: number
 }
 
 function mulberry32(seed: number): () => number {
@@ -52,17 +63,26 @@ export function useSwarmState(
   agentCount: number = DEFAULT_AGENT_COUNT,
   seed: number = 42
 ): SwarmSnapshot {
-  return useMemo(() => {
-    const agents = generateDummyAgents(agentCount, seed)
-    return {
-      step: 0,
-      agents,
-      metrics: {
-        step: 0,
-        explored_pct: 0,
-        collisions: 0,
-        mean_reward: 0,
-      },
-    }
-  }, [agentCount, seed])
+  const stream = useWebSocket()
+  const placeholder = useMemo(
+    () => generateDummyAgents(agentCount, seed),
+    [agentCount, seed]
+  )
+
+  const liveAgents = stream.message?.agents ?? null
+  const agents = liveAgents ?? placeholder
+  const metrics: MetricsSnapshot = stream.message
+    ? messageToMetrics(stream.message)
+    : { step: 0, explored_pct: 0, collisions: 0, mean_reward: 0 }
+
+  return {
+    step: stream.message?.step ?? 0,
+    agents,
+    metrics,
+    connected: stream.connected,
+    status: stream.status,
+    statusLabel: describeWebSocketStatus(stream.status),
+    hasLiveData: stream.message !== null,
+    agentCount: agents.length,
+  }
 }

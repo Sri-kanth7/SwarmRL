@@ -10,14 +10,15 @@ The objective is to train the drones to search and cover the
 environment cooperatively while minimizing collisions and
 producing an emergent, decentralized search pattern.
 
-> **Current stage: Week 2 — IPPO training runs.**
+> **Current stage: Week 2 — IPPO training runs and live streaming.**
 > The repository contains working foundations (environment,
-> configuration, backend skeleton with a mock state stream,
-> frontend/3D skeleton with dummy data, interface contracts, and
-> tests) plus a runnable IPPO entry point that produces an RLlib
-> checkpoint with contract metadata. MAPPO training,
-> checkpoint-backed inference, and live end-to-end streaming are
-> **not** implemented yet.
+> configuration, backend with a mock state stream, frontend/3D scene,
+> interface contracts, and tests) plus a runnable IPPO entry point
+> that produces an RLlib checkpoint with contract metadata. The
+> frontend now connects to the backend WebSocket stream and renders
+> live drone positions in mock mode; MAPPO training and
+> checkpoint-backed backend inference remain works in progress.
+> Runtime verification is expected in GitHub Codespaces.
 
 ---
 
@@ -139,20 +140,24 @@ Implemented:
   every IPPO run (`metadata.json`, `policy.pt`, `metrics.json`,
   `config_snapshot.yaml`, and the RLlib checkpoint under `rllib/`)
 - FastAPI backend with HTTP endpoints, WebSocket stream, message
-  schemas, and a deterministic **mock** drone-state generator
+  schemas, a deterministic **mock** drone-state generator, and a
+  selectable checkpoint-backed inference engine
 - React/Vite/TypeScript frontend with a 3D scene, drone
-  prototypes, ground/coverage map, and metrics panels driven by
-  dummy data
+  prototypes, ground/coverage map, and metrics panels that render the
+  live WebSocket stream (with a deterministic placeholder before the
+  first frame)
 - Interface contracts and architecture documentation
-- Unit, smoke, and environment↔training integration tests
+- Unit, smoke, environment↔training, and backend↔frontend
+  integration tests
 
 Intentionally deferred (later weeks):
 
 - MAPPO training and the centralized critic, tuned hyperparameters
-- Checkpoint-backed inference (loading `policy.pt` for the backend)
+- Checkpoint-backed backend inference hardening (world-coordinate
+  extraction and end-to-end validation with a trained checkpoint)
 - Replay, control endpoints, production streaming
-- Live WebSocket animation, interpolation, trails, coverage
-  heatmap, analytics charts, final control panel
+- Flight trails, coverage heatmap, analytics charts, final control
+  panel, interpolation
 - Curriculum, dynamic obstacles, wind, performance optimization
 
 ---
@@ -167,6 +172,15 @@ The backend supports mock and checkpoint-backed inference:
 - SWARMRL_CHECKPOINT_PATH or 	raining.checkpoint_path / SWARMRL_CHECKPOINT_DIR: path to checkpoint directory containing metadata.json and RLlib checkpoint
 
 If checkpoint mode is selected and the checkpoint is missing/incompatible, the server fails with a clear error.
+
+### Streaming Configuration (Frontend)
+
+The frontend resolves the stream URL in this order: an explicit
+argument, then `VITE_SWARMRL_WS_URL`, then the same-origin `ws(s)://<host>/ws`.
+In development the Vite proxy forwards `/ws` to `http://localhost:8000`,
+so no variable is required. Set `VITE_SWARMRL_WS_URL` (for example
+`ws://localhost:8000/ws`) only when the frontend is served from a
+different origin than the backend.
 
 Dependencies are declared in `pyproject.toml` and
 `requirements.txt` (install them in your own environment; this
@@ -190,8 +204,12 @@ python -m pytest tests/smoke
 # lint
 ruff check .
 
-# backend server (mock state stream on ws://localhost:8000/ws)
+# backend server (state stream on ws://localhost:8000/ws; mock by default)
 python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
+
+# backend server with checkpoint-backed inference (fails if the checkpoint is missing)
+SWARMRL_INFERENCE_MODE=checkpoint SWARMRL_CHECKPOINT_PATH=training/checkpoints/latest \
+  python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
 
 # build a training configuration without training
 python -m training.train_mappo --print-config
@@ -202,7 +220,17 @@ python -m training.train_ippo --config training/configs/ippo.yaml --iterations 2
 
 # frontend dev server (http://localhost:5173)
 npm --prefix frontend run dev
+
+# backend-to-frontend streaming contract (in-process, no server needed)
+python -m pytest tests/integration/test_server_frontend.py -v
 ```
+
+To verify the live path in a browser, run the backend and frontend
+above, open `http://localhost:5173`, and confirm the header badge
+reads `live stream (streaming)` while the drones move and the step
+rises. Stopping the backend switches the badge to a disconnected
+state. Full details are in `docs/contracts/websocket_schema.md`
+("End-To-End Smoke Test").
 
 On Windows, run the `python ...` / `npm ...` commands directly in
 PowerShell; the files in `scripts/` are bash helpers.

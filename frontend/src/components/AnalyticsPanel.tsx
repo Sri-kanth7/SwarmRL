@@ -15,6 +15,10 @@ function format(value: number, digits = 2): string {
   return Number.isFinite(value) ? value.toFixed(digits) : '—'
 }
 
+function formatInt(value: number): string {
+  return Number.isFinite(value) ? String(Math.max(0, Math.round(value))) : '—'
+}
+
 export default function AnalyticsPanel({ metrics }: AnalyticsPanelProps) {
   return (
     <section className="panel" aria-label="analytics panel">
@@ -23,13 +27,13 @@ export default function AnalyticsPanel({ metrics }: AnalyticsPanelProps) {
         <dt>Explored %</dt>
         <dd>{format(metrics.explored_pct)}</dd>
         <dt>Collisions</dt>
-        <dd>{Math.max(0, Math.round(metrics.collisions))}</dd>
+        <dd>{formatInt(metrics.collisions)}</dd>
         <dt>Mean reward</dt>
         <dd>{format(metrics.mean_reward)}</dd>
         <dt>Step</dt>
-        <dd>{Math.max(0, Math.round(metrics.step))}</dd>
+        <dd>{formatInt(metrics.step)}</dd>
       </dl>
-      <p className="hint">Metrics source: backend snapshot contract.</p>
+      <p className="hint">Metrics source: backend stream (mean reward via HTTP only).</p>
     </section>
   )
 }
