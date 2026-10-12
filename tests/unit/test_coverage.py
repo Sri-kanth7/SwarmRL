@@ -14,6 +14,8 @@ These tests use the existing dependencies only (numpy via the engine);
 no network, Ray runtime, or checkpoint is involved.
 """
 
+from itertools import pairwise
+
 import pytest
 
 from env.coverage import CoverageGrid
@@ -117,7 +119,7 @@ def test_mock_newly_visited_cells_are_valid_grid_indices(mock_stream):
 
 def test_mock_coverage_never_decreases_and_is_cumulative(mock_stream):
     pcts = [message.explored_pct for message in mock_stream]
-    assert all(later >= earlier for earlier, later in zip(pcts, pcts[1:]))
+    assert all(later >= earlier for earlier, later in pairwise(pcts))
     assert 0.0 <= pcts[0] <= pcts[-1] <= 100.0
     # The swarm discovers new cells before the orbits close.
     assert pcts[-1] > pcts[0]
