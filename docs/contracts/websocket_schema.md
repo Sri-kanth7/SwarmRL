@@ -59,6 +59,12 @@ Notes:
   coverage state.
 - `collisions` is per-step; cumulative values are reported through
   the metrics endpoint (`docs/contracts/metrics_schema.md`).
+- The Week 1 mock generator drives each drone along a **fixed circular
+  orbit**, so `explored_pct` can plateau once the orbits stop touching
+  new cells (and `newly_visited_cells` becomes `[]`) while the streamed
+  positions keep changing. This is expected mock behavior, not a frozen
+  or capped metric; policy-driven runs explore through actions and are
+  not periodic by construction.
 
 ## Client Messages
 

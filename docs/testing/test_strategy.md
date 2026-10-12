@@ -48,6 +48,7 @@ commands directly (PowerShell-compatible).
 | `tests/unit/test_environment.py` | PettingZoo lifecycle, spaces, shapes, truncation, bounds |
 | `tests/unit/test_schemas.py` | WebSocket/metrics schema validation and serialization |
 | `tests/unit/test_metrics.py` | Episode aggregation and backend metrics collection |
+| `tests/unit/test_coverage.py` | Coverage-grid geometry, `explored_pct` formula, duplicate handling, `mark_segment` sweeping, boundary clamping, reset, and mock-stream coverage (cumulative, then saturating) |
 | `tests/smoke/test_project_smoke.py` | Files, configs, and imports of every layer exist and parse |
 | `tests/fixtures/mock_agent_data.json` | Sample `StepMessage` for frontend/tooling use |
 
